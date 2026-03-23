@@ -12,7 +12,7 @@ import {
   getDownloadURL,
   getStorage,
   ref,
-  uploadBytes,
+  uploadBytesResumable,
 } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
 
 const ACCESS_PIN = "1105";
@@ -107,7 +107,8 @@ function initGalleryPage() {
         timeline.append(card);
       });
     },
-    () => {
+    (error) => {
+      console.error(error);
       loader.classList.add("hidden");
       emptyState.classList.remove("hidden");
       emptyState.textContent = "Unable to load photos right now";
@@ -121,6 +122,9 @@ function initUploadPage() {
   const captionInput = document.getElementById("captionInput");
   const uploadBtn = document.getElementById("uploadBtn");
   const message = document.getElementById("uploadMessage");
+  const progressWrap = document.getElementById("uploadProgressWrap");
+  const progressBar = document.getElementById("uploadProgressBar");
+  const progressText = document.getElementById("uploadPercentText");
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -143,20 +147,23 @@ function initUploadPage() {
       return;
     }
 
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const filePath = `photos/${Date.now()}-${safeName}`;
+    const storageRef = ref(storage, filePath);
+
     try {
       uploadBtn.disabled = true;
       uploadBtn.textContent = "Uploading...";
-      setMessage(message, "", "");
+      setMessage(message, "Preparing upload...", "");
+      setProgress(progressWrap, progressBar, progressText, 0, false);
 
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const filePath = `photos/${Date.now()}-${safeName}`;
-      const storageRef = ref(storage, filePath);
+      const imageUrl = await uploadImageWithProgress(
+        storageRef,
+        file,
+        (percent) => setProgress(progressWrap, progressBar, progressText, percent, false)
+      );
 
-      await uploadBytes(storageRef, file, {
-        contentType: file.type,
-      });
-
-      const imageUrl = await getDownloadURL(storageRef);
+      setMessage(message, "Saving to timeline...", "");
 
       await addDoc(collection(db, "photos"), {
         imageUrl,
@@ -165,14 +172,40 @@ function initUploadPage() {
       });
 
       form.reset();
+      setProgress(progressWrap, progressBar, progressText, 100, false);
       setMessage(message, "Photo uploaded successfully", "success");
+      setTimeout(() => {
+        setProgress(progressWrap, progressBar, progressText, 0, true);
+      }, 700);
     } catch (error) {
       console.error(error);
-      setMessage(message, "Upload failed. Please try again.", "error");
+      setMessage(message, getUploadErrorMessage(error), "error");
+      setProgress(progressWrap, progressBar, progressText, 0, true);
     } finally {
       uploadBtn.disabled = false;
       uploadBtn.textContent = "Upload Photo";
     }
+  });
+}
+
+function uploadImageWithProgress(storageRef, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, file, {
+      contentType: file.type,
+    });
+
+    uploadTask.on(
+      "state_changed",
+      (snapshot) => {
+        const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        onProgress(percent);
+      },
+      (error) => reject(error),
+      async () => {
+        const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
+        resolve(imageUrl);
+      }
+    );
   });
 }
 
@@ -183,7 +216,7 @@ function buildPhotoCard(photo, index) {
 
   const image = document.createElement("img");
   image.src = photo.imageUrl;
-  image.alt = "Uploaded daily memory";
+  image.alt = "Uploaded photo";
   image.loading = "lazy";
 
   const meta = document.createElement("div");
@@ -242,4 +275,45 @@ function setupLogoutButton() {
 function setMessage(element, text, type) {
   element.textContent = text;
   element.className = type ? `message ${type}` : "message";
+}
+
+function setProgress(progressWrap, progressBar, progressText, percent, hide) {
+  if (hide) {
+    progressWrap.classList.add("hidden");
+    progressBar.style.width = "0%";
+    progressText.textContent = "0%";
+    return;
+  }
+
+  progressWrap.classList.remove("hidden");
+  progressBar.style.width = `${percent}%`;
+  progressText.textContent = `${percent}%`;
+}
+
+function getUploadErrorMessage(error) {
+  if (!error || !error.code) {
+    return "Upload failed. Please try again.";
+  }
+
+  if (error.code === "storage/unauthorized") {
+    return "Storage permission denied. Check Firebase Storage rules.";
+  }
+
+  if (error.code === "storage/canceled") {
+    return "Upload was canceled.";
+  }
+
+  if (error.code === "storage/quota-exceeded") {
+    return "Storage quota exceeded for this Firebase project.";
+  }
+
+  if (error.code.startsWith("storage/")) {
+    return "Storage upload failed. Check internet and bucket settings.";
+  }
+
+  if (error.code.startsWith("permission-denied")) {
+    return "Firestore permission denied. Check Firestore rules.";
+  }
+
+  return "Upload failed. Please try again.";
 }

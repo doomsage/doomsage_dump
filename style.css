@@ -171,6 +171,39 @@ textarea:focus {
   animation: spin 0.8s linear infinite;
 }
 
+.upload-progress-wrap {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(111, 86, 232, 0.14);
+}
+
+.upload-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.upload-progress-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(140, 114, 255, 0.18);
+  overflow: hidden;
+}
+
+.upload-progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #81d4ff, #8c72ff);
+  transition: width 0.15s ease;
+}
+
 .timeline {
   position: relative;
   margin-top: 0.8rem;

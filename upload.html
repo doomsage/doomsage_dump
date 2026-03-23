@@ -35,6 +35,16 @@
             placeholder="Add a note for this photo"
           ></textarea>
 
+          <div id="uploadProgressWrap" class="upload-progress-wrap hidden" aria-live="polite">
+            <div class="upload-progress-head">
+              <span>Upload progress</span>
+              <span id="uploadPercentText">0%</span>
+            </div>
+            <div class="upload-progress-track">
+              <div id="uploadProgressBar" class="upload-progress-bar"></div>
+            </div>
+          </div>
+
           <button id="uploadBtn" type="submit" class="btn primary">Upload Photo</button>
           <p id="uploadMessage" class="message" aria-live="polite"></p>
         </form>
