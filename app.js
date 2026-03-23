@@ -20,12 +20,13 @@ const AUTH_KEY = "daily-photo-auth";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID",
+  apiKey: "AIzaSyBfZyrh7c91940XHc4lTZAyPLNCDFaGFhQ",
+  authDomain: "doomsage-dump.firebaseapp.com",
+  projectId: "doomsage-dump",
+  storageBucket: "doomsage-dump.firebasestorage.app",
+  messagingSenderId: "800883948883",
+  appId: "1:800883948883:web:abcafc1e42ac886e5bf5a6",
+  measurementId: "G-T8CJ2EEY0E"
 };
 
 const app = initializeApp(firebaseConfig);
