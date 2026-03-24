@@ -6,7 +6,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 // Supabase project settings placeholders.
 const SUPABASE_URL = "https://zaepcbphmrpxtkkbbapx.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_ANON_KEY = "sb_publishable_3a-FbW-iN7FRnrI5po0RYA_tLP0PQ76";
 const SUPABASE_BUCKET = "photos";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
