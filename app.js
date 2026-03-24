@@ -5,7 +5,7 @@ const AUTH_KEY = "daily-photo-auth";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
 // Supabase project settings placeholders.
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_URL = "https://zaepcbphmrpxtkkbbapx.supabase.co";
 const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
 const SUPABASE_BUCKET = "photos";
 
