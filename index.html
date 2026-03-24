@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daily Photo Space</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body data-page="index">
+    <main class="page-center">
+      <section class="card auth-card fade-up">
+        <h1>Daily Photo Space</h1>
+        <p class="subtitle">Enter your PIN to open the timeline.</p>
+
+        <form id="pinForm" class="stack-gap">
+          <label for="pinInput" class="label">Access PIN</label>
+          <input
+            id="pinInput"
+            name="pin"
+            type="password"
+            inputmode="numeric"
+            autocomplete="off"
+            maxlength="8"
+            placeholder="••••"
+            required
+          />
+          <button type="submit" class="btn primary">Enter</button>
+          <p id="pinMessage" class="message" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

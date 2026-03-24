@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Timeline | Daily Photo Space</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body data-page="gallery">
+    <header class="topbar">
+      <h1>Photo Timeline</h1>
+      <nav class="nav-actions">
+        <a class="btn ghost" href="upload.html">Upload</a>
+        <button id="logoutBtn" class="btn ghost" type="button">Logout</button>
+      </nav>
+    </header>
+
+    <main class="container">
+      <div id="timelineLoader" class="loader-wrap">
+        <div class="loader"></div>
+        <p>Loading photos...</p>
+      </div>
+
+      <p id="emptyState" class="empty-state hidden">No photos yet</p>
+
+      <section id="timeline" class="timeline"></section>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
