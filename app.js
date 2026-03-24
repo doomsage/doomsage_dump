@@ -1,37 +1,15 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
-import {
-  addDoc,
-  collection,
-  getFirestore,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-firestore.js";
-import {
-  getDownloadURL,
-  getStorage,
-  ref,
-  uploadBytesResumable,
-} from "https://www.gstatic.com/firebasejs/10.12.4/firebase-storage.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 const ACCESS_PIN = "1105";
 const AUTH_KEY = "daily-photo-auth";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
-const firebaseConfig = {
-  apiKey: "AIzaSyBfZyrh7c91940XHc4lTZAyPLNCDFaGFhQ",
-  authDomain: "doomsage-dump.firebaseapp.com",
-  projectId: "doomsage-dump",
-  storageBucket: "doomsage-dump.firebasestorage.app",
-  messagingSenderId: "800883948883",
-  appId: "1:800883948883:web:abcafc1e42ac886e5bf5a6",
-  measurementId: "G-T8CJ2EEY0E"
-};
+// Supabase project settings placeholders.
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const SUPABASE_BUCKET = "photos";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const storage = getStorage(app);
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const currentPage = document.body.dataset.page;
 
@@ -81,39 +59,49 @@ function initPinPage() {
   });
 }
 
-function initGalleryPage() {
+async function initGalleryPage() {
   const timeline = document.getElementById("timeline");
   const loader = document.getElementById("timelineLoader");
   const emptyState = document.getElementById("emptyState");
 
-  const photosQuery = query(collection(db, "photos"), orderBy("createdAt", "desc"));
+  async function loadPhotos() {
+    const { data, error } = await supabase
+      .from("photos")
+      .select("id, image_url, caption, created_at")
+      .order("created_at", { ascending: false });
 
-  onSnapshot(
-    photosQuery,
-    (snapshot) => {
-      timeline.innerHTML = "";
-      loader.classList.add("hidden");
+    timeline.innerHTML = "";
+    loader.classList.add("hidden");
 
-      if (snapshot.empty) {
-        emptyState.classList.remove("hidden");
-        return;
-      }
-
-      emptyState.classList.add("hidden");
-
-      snapshot.forEach((doc, index) => {
-        const data = doc.data();
-        const card = buildPhotoCard(data, index);
-        timeline.append(card);
-      });
-    },
-    (error) => {
+    if (error) {
       console.error(error);
-      loader.classList.add("hidden");
       emptyState.classList.remove("hidden");
       emptyState.textContent = "Unable to load photos right now";
+      return;
     }
-  );
+
+    if (!data || data.length === 0) {
+      emptyState.classList.remove("hidden");
+      emptyState.textContent = "No photos yet";
+      return;
+    }
+
+    emptyState.classList.add("hidden");
+
+    data.forEach((photo, index) => {
+      const card = buildPhotoCard(photo, index);
+      timeline.append(card);
+    });
+  }
+
+  await loadPhotos();
+
+  supabase
+    .channel("photos-timeline")
+    .on("postgres_changes", { event: "*", schema: "public", table: "photos" }, () => {
+      loadPhotos();
+    })
+    .subscribe();
 }
 
 function initUploadPage() {
@@ -148,8 +136,7 @@ function initUploadPage() {
     }
 
     const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const filePath = `photos/${Date.now()}-${safeName}`;
-    const storageRef = ref(storage, filePath);
+    const filePath = `${Date.now()}-${safeName}`;
 
     try {
       uploadBtn.disabled = true;
@@ -157,19 +144,21 @@ function initUploadPage() {
       setMessage(message, "Preparing upload...", "");
       setProgress(progressWrap, progressBar, progressText, 0, false);
 
-      const imageUrl = await uploadImageWithProgress(
-        storageRef,
-        file,
-        (percent) => setProgress(progressWrap, progressBar, progressText, percent, false)
-      );
+      const imageUrl = await uploadToSupabaseWithProgress(filePath, file, (percent) => {
+        setProgress(progressWrap, progressBar, progressText, percent, false);
+      });
 
       setMessage(message, "Saving to timeline...", "");
 
-      await addDoc(collection(db, "photos"), {
-        imageUrl,
+      const { error: insertError } = await supabase.from("photos").insert({
+        image_url: imageUrl,
         caption,
-        createdAt: serverTimestamp(),
+        created_at: new Date().toISOString(),
       });
+
+      if (insertError) {
+        throw insertError;
+      }
 
       form.reset();
       setProgress(progressWrap, progressBar, progressText, 100, false);
@@ -188,24 +177,55 @@ function initUploadPage() {
   });
 }
 
-function uploadImageWithProgress(storageRef, file, onProgress) {
-  return new Promise((resolve, reject) => {
-    const uploadTask = uploadBytesResumable(storageRef, file, {
-      contentType: file.type,
-    });
+function uploadToSupabaseWithProgress(filePath, file, onProgress) {
+  return new Promise(async (resolve, reject) => {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
 
-    uploadTask.on(
-      "state_changed",
-      (snapshot) => {
-        const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
-        onProgress(percent);
-      },
-      (error) => reject(error),
-      async () => {
-        const imageUrl = await getDownloadURL(uploadTask.snapshot.ref);
-        resolve(imageUrl);
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${encodeURIComponent(filePath)}`;
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl, true);
+    xhr.setRequestHeader("apikey", SUPABASE_ANON_KEY);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+    if (accessToken) {
+      xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    } else {
+      xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_ANON_KEY}`);
+    }
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) {
+        return;
       }
-    );
+      const percent = Math.round((event.loaded / event.total) * 100);
+      onProgress(percent);
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Network error during upload."));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        let details = "Upload failed.";
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          details = parsed?.message || parsed?.error || details;
+        } catch {
+          details = xhr.responseText || details;
+        }
+
+        reject(new Error(details));
+        return;
+      }
+
+      const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filePath);
+      resolve(data.publicUrl);
+    };
+
+    xhr.send(file);
   });
 }
 
@@ -215,7 +235,7 @@ function buildPhotoCard(photo, index) {
   card.style.animationDelay = `${index * 0.05}s`;
 
   const image = document.createElement("img");
-  image.src = photo.imageUrl;
+  image.src = photo.image_url;
   image.alt = "Uploaded photo";
   image.loading = "lazy";
 
@@ -224,7 +244,7 @@ function buildPhotoCard(photo, index) {
 
   const date = document.createElement("p");
   date.className = "photo-date";
-  date.textContent = formatDate(photo.createdAt);
+  date.textContent = formatDate(photo.created_at);
 
   meta.append(date);
 
@@ -239,14 +259,14 @@ function buildPhotoCard(photo, index) {
 }
 
 function formatDate(createdAt) {
-  if (!createdAt?.toDate) {
+  if (!createdAt) {
     return "Just now";
   }
 
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(createdAt.toDate());
+  }).format(new Date(createdAt));
 }
 
 function ensureAccess() {
@@ -291,29 +311,24 @@ function setProgress(progressWrap, progressBar, progressText, percent, hide) {
 }
 
 function getUploadErrorMessage(error) {
-  if (!error || !error.code) {
-    return "Upload failed. Please try again.";
+  const raw = String(error?.message || error || "");
+  const message = raw.toLowerCase();
+
+  if (message.includes("row-level security") || message.includes("permission denied")) {
+    return "Supabase policy denied this action. Check storage/table RLS policies.";
   }
 
-  if (error.code === "storage/unauthorized") {
-    return "Storage permission denied. Check Firebase Storage rules.";
+  if (message.includes("bucket") && message.includes("not found")) {
+    return "Bucket not found. Create the storage bucket and use the same name in code.";
   }
 
-  if (error.code === "storage/canceled") {
-    return "Upload was canceled.";
+  if (message.includes("jwt") || message.includes("token")) {
+    return "Invalid Supabase key or token. Verify URL and anon key.";
   }
 
-  if (error.code === "storage/quota-exceeded") {
-    return "Storage quota exceeded for this Firebase project.";
+  if (message.includes("network")) {
+    return "Network issue during upload. Check internet and retry.";
   }
 
-  if (error.code.startsWith("storage/")) {
-    return "Storage upload failed. Check internet and bucket settings.";
-  }
-
-  if (error.code.startsWith("permission-denied")) {
-    return "Firestore permission denied. Check Firestore rules.";
-  }
-
-  return "Upload failed. Please try again.";
+  return "Upload failed. Check Supabase URL/key, bucket, and policies.";
 }
